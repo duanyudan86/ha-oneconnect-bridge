@@ -38,7 +38,7 @@ OneConnect Bridge 是一个运行在 Home Assistant 中、基于 OneConnect 技�
 通过 HACS 安装：
 
 1. 打开 `HACS → 集成`，点击右上角菜单并选择“自定义存储库”。
-2. 添加仓库地址 `https://github.com/xiasi0/ha-oneconnect-bridge`，类型选择 `Integration`。
+2. 添加仓库地址 `https://github.com/duanyudan86/ha-oneconnect-bridge`，类型选择 `Integration`。
 3. 搜索并下载 `OneConnect Bridge`。
 4. 重启 Home Assistant。
 
