@@ -128,6 +128,7 @@ _ROLES = {
 
 class ActionServiceAdapter:
     service_id = "action"
+    aliases = ("leftAction",)
 
     def validate_service(self, service: ServiceRef) -> None:
         if service.service_type != "action":
