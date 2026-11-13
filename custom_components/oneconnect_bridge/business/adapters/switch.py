@@ -7,6 +7,7 @@ from ..models import ServiceRef
 
 class SwitchServiceAdapter:
     service_id = "switch"
+    aliases = ("switch1", "switch2", "switch3")
     _domains = {"climate", "light", "switch", "fan"}
 
     def validate_service(self, service: ServiceRef) -> None:
