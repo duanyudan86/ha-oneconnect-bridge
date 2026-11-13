@@ -14,6 +14,15 @@ class MappingConfigError(ValueError):
     pass
 
 
+DEFAULT_HA_PRODUCT_FIELDS = {
+    "sub_prod_id": "00",
+    "manufacturer": "002",
+    "protocol_type": 6,
+    "setup_type": 0,
+}
+EXPLICIT_PRODUCT_FIELDS = (*DEFAULT_HA_PRODUCT_FIELDS, "model")
+
+
 def load_enabled_mapping(path: Path) -> GatewayPlan | None:
     """Load service-selected child projections from a gateway mapping."""
 
@@ -81,6 +90,13 @@ def _parse_product(value: dict[str, Any], child_key: str) -> ProductSpec:
         raise MappingConfigError(
             f"child {child_key} product uses removed device_name; use friendly_name"
         )
+    prod_id = value.get("prod_id")
+    if not any(field in value for field in EXPLICIT_PRODUCT_FIELDS):
+        value = {
+            **value,
+            **DEFAULT_HA_PRODUCT_FIELDS,
+            "model": f"HA-{prod_id}",
+        }
     required_fields = (
         "prod_id",
         "sub_prod_id",
