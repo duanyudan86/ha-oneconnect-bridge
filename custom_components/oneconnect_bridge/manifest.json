@@ -1,7 +1,7 @@
 {
   "domain": "oneconnect_bridge",
   "name": "OneConnect Bridge",
-  "version": "2026.10.24",
+  "version": "2026.11.14",
   "config_flow": true,
   "documentation": "https://github.com/duanyudan86/ha-oneconnect-bridge",
   "issue_tracker": "https://github.com/duanyudan86/ha-oneconnect-bridge/issues",
