@@ -77,7 +77,9 @@ config/custom_components/oneconnect_bridge/
 .storage/oneconnect_bridge/gateways/<gateway_serial>/mapping.yaml
 ```
 
-首次添加网关时，集成会从 [default_mapping.yaml](custom_components/oneconnect_bridge/default_mapping.yaml) 复制样例。编辑对应网关的 `mapping.yaml`，为子设备填写华为产品身份、启用的服务和对应 HA 实体。
+首次添加网关时，集成会从 [default_mapping.yaml](custom_components/oneconnect_bridge/default_mapping.yaml) 复制样例。集成默认仅支持华为为 Home Assistant 构建的专属物模型，按示例填写 `device_type`、启用的服务和对应 HA 实体即可。
+
+如需使用自定义物模型，请自行查阅相关资料，并在配置文件中显式配置对应子设备的注册信息。由此产生的不可控因素及法律责任由您自行承担。
 
 仓库提供的预置子设备模型及其 H5 页面、Profile 见[预置子设备模型](docs/preconfigured-child-products.md)。
 

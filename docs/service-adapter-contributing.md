@@ -48,7 +48,7 @@
 查询流程：
 
 1. 在全量目录中按产品名称、`DeviceId` 或型号寻找候选单品；`DeviceId` 对应 YAML 的 `prod_id`。
-2. 打开单品 Profile，读取 `deviceTypeId`、`manufacturerId`、`deviceModel` 和 `protocolType`，用于填写产品身份。
+2. 打开单品 Profile，读取 `deviceTypeId`、`manufacturerId`、`deviceModel` 和 `protocolType`。集成默认仅支持华为为 Home Assistant 构建的专属物模型；使用自定义物模型时，请自行查阅资料并在配置文件中显式填写完整注册信息，由此产生的不可控因素及法律责任由您自行承担。
 3. 从 Profile 的 `services` 中读取 `serviceId` 作为 YAML `sid`，`serviceType` 作为 YAML `st`。
 4. 读取对应 `characteristics` 的 `characteristicName`、`characteristicType`、`method`、`min`、`max`、`step`、`unit` 和 `enumList`，将服务契约和双向转换实现到服务适配器。
 5. 如果 Profile 契约与已有服务适配器不同，先评估能否用该适配器开放的 `contract` 表达；不能表达时扩展现有适配器并完成真实投影验证。
