@@ -89,11 +89,9 @@ config/custom_components/oneconnect_bridge/
 
 服务适配器的贡献规则、真实投影验收，以及华为全量 IoT 目录和 Profile 的查询方法见 [服务适配器贡献说明](docs/service-adapter-contributing.md)。
 
-### 6. 重新配对与删除
+### 6. 网关故障处理
 
-可调用 `oneconnect_bridge.start_pairing` 服务并传入网关序列号，以重新启动局域网配对监听。
-
-如需重新配对，请在 HA 中删除整个 OneConnect Bridge 集成后重新添加。
+如果某个网关发生意外故障而无法使用，请先备份该网关对应序列号目录下已经配置的 `mapping.yaml` 文件，再在 HA 中删除对应序列号的 OneConnect Bridge 网关，最后重新添加网关。删除前请务必完成备份，否则已配置的子设备映射可能丢失。
 
 ## 相关项目
 

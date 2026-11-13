@@ -8,7 +8,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.translation import async_get_translations
-import voluptuous as vol
 
 from .business import MappingConfigError, load_enabled_mapping
 from .const import DOMAIN, MAX_GATEWAY_INSTANCES
@@ -57,34 +56,6 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         "exceptions",
         integrations={DOMAIN},
     )
-    data = hass.data.setdefault(
-        DOMAIN,
-        {
-            "manager": GatewayManager(),
-            "runtimes": {},
-            "forwarded_entries": set(),
-            "gateway_mappings": {},
-            "reload_callbacks": {},
-        },
-    )
-    if not hass.services.has_service(DOMAIN, "start_pairing"):
-        async def start_pairing(call) -> None:
-            serial = call.data["serial"]
-            runtime = data["manager"].get(serial)
-            if runtime is None:
-                raise HomeAssistantError(
-                    translation_domain=DOMAIN,
-                    translation_key="unknown_gateway",
-                    translation_placeholders={"serial": serial},
-                )
-            await hass.async_add_executor_job(runtime.start_pairing)
-
-        hass.services.async_register(
-            DOMAIN,
-            "start_pairing",
-            start_pairing,
-            schema=vol.Schema({vol.Required("serial"): vol.Coerce(str)}),
-        )
     return True
 
 
