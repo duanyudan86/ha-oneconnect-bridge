@@ -253,17 +253,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     data.setdefault("notification_removers", {})[entry.entry_id] = runtime.add_listener(
         on_runtime_change
     )
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     await hass.async_add_executor_job(runtime.start)
     sync_pairing_notification()
     schedule_platforms_if_online()
     return True
 
 
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload the gateway after an options change such as a new interface."""
+
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if not unloaded:
-        return False
-    data = hass.data[DOMAIN]
+    data = hass.data.get(DOMAIN) or {}
+    # Platforms are forwarded lazily once the gateway is bound/online; unloading
+    # them before that makes Home Assistant raise "Config entry was never loaded!".
+    if entry.entry_id in data.get("forwarded_entries", set()):
+        unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+        if not unloaded:
+            return False
     data.get("forwarded_entries", set()).discard(entry.entry_id)
     data.get("gateway_mappings", {}).pop(entry.entry_id, None)
     data.get("reload_callbacks", {}).pop(entry.entry_id, None)
@@ -273,7 +283,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     startup_sync_remover = data.get("startup_sync_removers", {}).pop(entry.entry_id, None)
     if startup_sync_remover is not None:
         startup_sync_remover()
-    runtime: GatewayRuntime | None = data["runtimes"].pop(entry.entry_id, None)
+    runtime: GatewayRuntime | None = data.get("runtimes", {}).pop(entry.entry_id, None)
     if runtime is not None:
         remover = data.get("notification_removers", {}).pop(entry.entry_id, None)
         if remover is not None:
@@ -285,7 +295,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         persistent_notification.async_dismiss(
             hass, f"{DOMAIN}_{runtime.serial}_mapping_error"
         )
-        data["manager"].remove(runtime)
+        manager = data.get("manager")
+        if manager is not None:
+            manager.remove(runtime)
     return True
 
 
