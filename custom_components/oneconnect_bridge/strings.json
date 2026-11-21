@@ -72,5 +72,10 @@
     "mapping_not_reloaded_message": "Child-device configuration for gateway `{serial}` was not reloaded:\n\n{error}\n\nThe previous configuration remains active. Fix mapping.yaml and try again.",
     "pairing_title": "OneConnect Bridge pairing",
     "pairing_message": "Gateway `{serial}` is waiting for pairing.\n\nPIN: `{pin}`\n\nOpen Huawei Smart Life, select Add gateway, and enter the PIN manually."
+  },
+  "options": {
+    "error": {
+      "mac_not_found": "Unable to read the MAC address of the selected network interface."
+    }
   }
 }
