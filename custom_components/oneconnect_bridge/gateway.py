@@ -272,7 +272,7 @@ class GatewayRuntime:
                         client,
                         access_token,
                         integration_version=self._integration_version,
-                        hardware_version=self._integration_version,
+                        hardware_version=VIRTUAL_HARDWARE_VERSION,
                     ):
                         raise RuntimeError("one or more child operations failed")
                 else:
@@ -626,12 +626,17 @@ class GatewayRuntime:
         manager = self._child_manager
         if manager is None:
             return
-        manager.register_on_session(
+        registered = manager.register_on_session(
             client,
             access_token,
             integration_version=integration_version,
-            hardware_version=self._integration_version,
+            hardware_version=VIRTUAL_HARDWARE_VERSION,
         )
+        if not registered:
+            _LOGGER.warning(
+                "Gateway %s child registration was incomplete; check the child logs",
+                self.serial,
+            )
 
     def _create_pairing_ticket(self) -> None:
         pin = f"{secrets.randbelow(100_000_000):08d}"
