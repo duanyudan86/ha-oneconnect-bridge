@@ -79,32 +79,42 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry):
-        return OptionsFlow(config_entry)
+        del config_entry
+        return OptionsFlow()
 
 
 class OptionsFlow(config_entries.OptionsFlow):
     """Allow the user to change the manually selected LAN interface."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self._entry = config_entry
-
     async def async_step_init(self, user_input=None):
         options = await self.hass.async_add_executor_job(_interface_options)
+        errors: dict[str, str] = {}
         if user_input is not None:
             interface_ip = user_input[CONF_INTERFACE_IP]
-            mac = await self.hass.async_add_executor_job(_interface_mac, interface_ip)
-            return self.async_create_entry(
-                title="",
-                data={CONF_INTERFACE_IP: interface_ip, CONF_MAC: mac},
-            )
+            try:
+                mac = await self.hass.async_add_executor_job(
+                    _interface_mac, interface_ip
+                )
+            except ValueError:
+                errors[CONF_INTERFACE_IP] = "mac_not_found"
+            else:
+                return self.async_create_entry(
+                    title="",
+                    data={CONF_INTERFACE_IP: interface_ip, CONF_MAC: mac},
+                )
+        entry = self.config_entry
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
                     vol.Required(
                         CONF_INTERFACE_IP,
-                        default=self._entry.data.get(CONF_INTERFACE_IP),
+                        default=entry.options.get(
+                            CONF_INTERFACE_IP,
+                            entry.data.get(CONF_INTERFACE_IP),
+                        ),
                     ): vol.In(options)
                 }
             ),
+            errors=errors,
         )

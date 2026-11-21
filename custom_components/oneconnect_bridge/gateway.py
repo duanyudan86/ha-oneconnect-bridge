@@ -153,12 +153,19 @@ class PairingBroker:
                 except TimeoutError:
                     if runtime.pairing_expired:
                         runtime.on_pairing_expired()
-                        break
                     continue
                 except OSError:
                     break
 
-                response, _ = runtime.handle_pairing_datagram(packet, remote[0])
+                try:
+                    response, _ = runtime.handle_pairing_datagram(packet, remote[0])
+                except Exception as error:  # noqa: BLE001 - keep the listener alive
+                    _LOGGER.warning(
+                        "Ignoring malformed pairing datagram from %s: %s",
+                        remote[0],
+                        error,
+                    )
+                    continue
                 if response is not None:
                     try:
                         sock.sendto(response, remote)
@@ -211,6 +218,7 @@ class GatewayRuntime:
         self._active_client: CloudM2MClient | None = None
         self._integration_version = ""
         self._reload_queue: Queue[dict[str, object]] = Queue()
+        self._discovery_message_id = secrets.randbelow(0x10000)
 
     def set_gateway_plan(self, plan: GatewayPlan | None) -> None:
         """Attach the compiled child plan for this gateway instance."""
@@ -239,11 +247,16 @@ class GatewayRuntime:
         if client is None or thread is None or not thread.is_alive():
             self.set_gateway_plan(plan)
             return
-        request: dict[str, object] = {"event": threading.Event(), "plan": plan}
+        request: dict[str, object] = {
+            "event": threading.Event(),
+            "plan": plan,
+            "abandoned": False,
+        }
         self._reload_queue.put(request)
         event = request["event"]
         assert isinstance(event, threading.Event)
         if not event.wait(timeout):
+            request["abandoned"] = True
             raise TimeoutError(f"gateway {self.serial} child reload timed out")
         error = request.get("error")
         if isinstance(error, Exception):
@@ -258,6 +271,9 @@ class GatewayRuntime:
             event = request["event"]
             plan = request["plan"]
             assert isinstance(event, threading.Event)
+            if request.get("abandoned"):
+                event.set()
+                continue
             old_manager = self._child_manager
             old_callback = client.on_child_command
             try:
@@ -272,7 +288,7 @@ class GatewayRuntime:
                         client,
                         access_token,
                         integration_version=self._integration_version,
-                        hardware_version=self._integration_version,
+                        hardware_version=VIRTUAL_HARDWARE_VERSION,
                     ):
                         raise RuntimeError("one or more child operations failed")
                 else:
@@ -379,7 +395,14 @@ class GatewayRuntime:
         """Start bound cloud service or the temporary pairing service."""
 
         self._stopped = False
-        state = self.store.read_json("cloud/material.json")
+        try:
+            state = self.store.read_json("cloud/material.json")
+        except ValueError as error:
+            _LOGGER.error(
+                "Gateway %s cloud material is unreadable: %s", self.serial, error
+            )
+            self._set_status("error", f"invalid cloud material: {error}")
+            return
         if state and isinstance(state.get("devId"), str) and state.get("secret"):
             self.start_cloud_from_state(state)
             return
@@ -395,7 +418,13 @@ class GatewayRuntime:
     def has_bound_material(self) -> bool:
         """Return whether this gateway has enough material for bound login."""
 
-        state = self.store.read_json("cloud/material.json")
+        try:
+            state = self.store.read_json("cloud/material.json")
+        except ValueError as error:
+            _LOGGER.error(
+                "Gateway %s cloud material is unreadable: %s", self.serial, error
+            )
+            return False
         return bool(
             state
             and isinstance(state.get("devId"), str)
@@ -442,8 +471,12 @@ class GatewayRuntime:
         self._set_status("error", f"pairing listener: {error}")
 
     def on_pairing_expired(self) -> None:
-        self._clear_pairing_ticket()
-        self._set_status("offline", "pairing PIN expired")
+        if self._stopped:
+            self._clear_pairing_ticket()
+            return
+        self._create_pairing_ticket()
+        self._set_status("pairing", "pairing PIN expired; a new pairing PIN was issued")
+        _LOGGER.info("Gateway %s issued a new pairing PIN after expiry", self.serial)
 
     def consume_pairing_complete(self) -> bool:
         with self._lock:
@@ -487,7 +520,15 @@ class GatewayRuntime:
                 nonlocal active_bound_state, active_binding
                 if active_bound_state is not None:
                     return True
-                material = self.store.read_json("cloud/material.json")
+                try:
+                    material = self.store.read_json("cloud/material.json")
+                except ValueError as error:
+                    _LOGGER.error(
+                        "Gateway %s cloud material is unreadable: %s",
+                        self.serial,
+                        error,
+                    )
+                    return False
                 if not material:
                     return False
                 dev_id = material.get("devId")
@@ -519,42 +560,66 @@ class GatewayRuntime:
 
             reconnect_delay = RECONNECT_INITIAL_DELAY_SECONDS
             while not self._cloud_stop.is_set():
-                ca_path = _ensure_huawei_trust_store(self.store)
-                session_state = active_bound_state
-                if active_bound_state is not None:
-                    session_state = (
-                        self.store.read_json("cloud/material.json")
-                        or active_bound_state
+                try:
+                    ca_path = _ensure_huawei_trust_store(self.store)
+                    session_state = active_bound_state
+                    if active_bound_state is not None:
+                        session_state = (
+                            self.store.read_json("cloud/material.json")
+                            or active_bound_state
+                        )
+                    client = CloudM2MClient(
+                        binding=active_binding,
+                        serial_number=self.serial,
+                        mac=self.config.mac,
+                        interface_ip=self.config.interface_ip,
+                        material_path=self.store.path("cloud/material.json"),
+                        on_online=lambda: self._set_status("online"),
+                        on_cloud_ready=handle_cloud_ready,
+                        on_worker_tick=self._process_reload_requests,
+                        device_model=self.config.model,
+                        device_type=self.config.device_type,
+                        manufacturer=self.config.manufacturer,
+                        product_id=self.config.product_id,
+                        protocol_type=self.config.protocol_type,
+                        firmware_version=integration_version,
+                        hardware_version=VIRTUAL_HARDWARE_VERSION,
+                        software_version=integration_version,
+                        cloud_primary_url=(
+                            session_state.get("cloudPrimaryUrl")
+                            if session_state
+                            else None
+                        ),
+                        cloud_standby_url=(
+                            session_state.get("cloudStandbyUrl")
+                            if session_state
+                            else None
+                        ),
+                        ca_json=ca_path,
                     )
-                client = CloudM2MClient(
-                    binding=active_binding,
-                    serial_number=self.serial,
-                    mac=self.config.mac,
-                    interface_ip=self.config.interface_ip,
-                    material_path=self.store.path("cloud/material.json"),
-                    on_online=lambda: self._set_status("online"),
-                    on_cloud_ready=handle_cloud_ready,
-                    on_worker_tick=self._process_reload_requests,
-                    device_model=self.config.model,
-                    device_type=self.config.device_type,
-                    manufacturer=self.config.manufacturer,
-                    product_id=self.config.product_id,
-                    protocol_type=self.config.protocol_type,
-                    firmware_version=integration_version,
-                    hardware_version=VIRTUAL_HARDWARE_VERSION,
-                    software_version=integration_version,
-                    cloud_primary_url=(
-                        session_state.get("cloudPrimaryUrl")
-                        if session_state
-                        else None
-                    ),
-                    cloud_standby_url=(
-                        session_state.get("cloudStandbyUrl")
-                        if session_state
-                        else None
-                    ),
-                    ca_json=ca_path,
-                )
+                except ValueError as error:
+                    _LOGGER.error(
+                        "Gateway %s cloud material is invalid; stopping: %s",
+                        self.serial,
+                        error,
+                    )
+                    self._set_status("error", f"invalid cloud material: {error}")
+                    return
+                except Exception as error:  # noqa: BLE001 - transient setup failure
+                    _LOGGER.warning(
+                        "Gateway %s cloud client setup failed; retrying in %.1fs: %s",
+                        self.serial,
+                        reconnect_delay,
+                        error,
+                    )
+                    self._set_status("offline")
+                    if self._cloud_stop.wait(reconnect_delay):
+                        break
+                    reconnect_delay = min(
+                        reconnect_delay * 2,
+                        RECONNECT_MAX_DELAY_SECONDS,
+                    )
+                    continue
                 self._active_client = client
                 if session_state is None:
                     result = client.run(stop_event=self._cloud_stop)
@@ -626,12 +691,22 @@ class GatewayRuntime:
         manager = self._child_manager
         if manager is None:
             return
-        manager.register_on_session(
+        registered = manager.register_on_session(
             client,
             access_token,
             integration_version=integration_version,
-            hardware_version=self._integration_version,
+            hardware_version=VIRTUAL_HARDWARE_VERSION,
         )
+        if not registered:
+            _LOGGER.warning(
+                "Gateway %s child registration was incomplete; check the child logs",
+                self.serial,
+            )
+
+    def _next_discovery_message_id(self) -> int:
+        with self._lock:
+            self._discovery_message_id = (self._discovery_message_id + 1) & 0xFFFF
+            return self._discovery_message_id
 
     def _create_pairing_ticket(self) -> None:
         pin = f"{secrets.randbelow(100_000_000):08d}"
@@ -643,7 +718,7 @@ class GatewayRuntime:
             self._pairing_responder = LocalPairingResponder(
                 self.descriptor,
                 pin,
-                discovery_response_message_id=lambda: 0x2774,
+                discovery_response_message_id=self._next_discovery_message_id,
                 on_cloud_setup_record=self._on_cloud_setup_record,
             )
 
@@ -680,7 +755,13 @@ class GatewayRuntime:
             self._pairing_complete_pending = True
 
     def _load_binding(self) -> CloudSetupBindingInfo | None:
-        value = self.store.read_json("cloud/material.json")
+        try:
+            value = self.store.read_json("cloud/material.json")
+        except ValueError as error:
+            _LOGGER.error(
+                "Gateway %s cloud material is unreadable: %s", self.serial, error
+            )
+            return None
         if not value:
             return None
         try:

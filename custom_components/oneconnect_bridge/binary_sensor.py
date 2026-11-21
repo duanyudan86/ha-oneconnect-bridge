@@ -33,7 +33,3 @@ class GatewayOnlineEntity(GatewayEntity, BinarySensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, str]:
         return {"phase": self.runtime.status}
-
-    @property
-    def available(self) -> bool:
-        return self.runtime.status != "stopped"

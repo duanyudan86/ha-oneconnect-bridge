@@ -6,6 +6,7 @@ from typing import Any
 import yaml
 
 from ..const import MAX_CHILD_DEVICES_PER_GATEWAY
+from ..storage import is_safe_child_key
 from .adapters import get_service_adapter
 from .models import ChildPlan, GatewayPlan, ProductSpec, ServiceBinding, ServiceRef
 
@@ -51,6 +52,10 @@ def load_enabled_mapping(path: Path) -> GatewayPlan | None:
     for key, raw_child in raw_children.items():
         if not isinstance(key, str) or not key:
             raise MappingConfigError("child keys must be non-empty text")
+        if not is_safe_child_key(key):
+            raise MappingConfigError(
+                f"child {key!r} must use a plain name without '/', '\\', '.' or '..'"
+            )
         if not isinstance(raw_child, dict):
             raise MappingConfigError(f"child {key} must be a mapping")
         if "adapter" in raw_child or "entities" in raw_child:

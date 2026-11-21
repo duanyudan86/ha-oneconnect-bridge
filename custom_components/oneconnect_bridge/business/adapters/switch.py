@@ -1,4 +1,11 @@
-"""Huawei `switch.on` adapter with configurable wire and climate control."""
+"""Huawei `switch.on` adapter with configurable wire and climate control.
+
+同一套适配器覆盖 Profile 里常见的 ``switch`` 服务族：serviceId 可以是
+``switch`` / ``switch1``~``switch4`` / ``usbSwitch1``，空调的 ``switchPTC``
+（电辅热），以及热水器的 ``inchingSwitch``（点动循环）/ ``boostMode``
+（增压洗）；这些服务都是单个布尔 ``on``（1 开 / 0 关）。``st`` 仍写
+``switch``，``sid`` 填 Profile 里的服务标识即可。
+"""
 
 from __future__ import annotations
 
@@ -7,7 +14,16 @@ from ..models import ServiceRef
 
 class SwitchServiceAdapter:
     service_id = "switch"
-    aliases = ("switch1", "switch2", "switch3")
+    aliases = (
+        "switch1",
+        "switch2",
+        "switch3",
+        "switch4",
+        "usbSwitch1",
+        "switchPTC",
+        "inchingSwitch",
+        "boostMode",
+    )
     _domains = {"climate", "light", "switch", "fan"}
 
     def validate_service(self, service: ServiceRef) -> None:

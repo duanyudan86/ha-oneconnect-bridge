@@ -86,6 +86,19 @@ class LocalPairingResponder:
         except CoapProtocolError:
             return None, PairingResult(kind="invalid_coap", packet_length=len(packet))
 
+        try:
+            return self._dispatch(request, packet, peer_host)
+        except CoapProtocolError as error:
+            return None, PairingResult(
+                kind="invalid_coap",
+                packet_length=len(packet),
+                peer_host=peer_host,
+                failure_stage=str(error),
+            )
+
+    def _dispatch(
+        self, request: CoapMessage, packet: bytes, peer_host: str
+    ) -> tuple[bytes | None, PairingResult]:
         if is_cloud_setup_request(request):
             response = self._descriptor.unbound_cloud_setup_response(
                 request,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 import logging
 
 from homeassistant.core import HomeAssistant
@@ -21,6 +22,11 @@ class HAEntityBridge:
 
     def read_child_state(self, child: ChildPlan) -> dict[str, dict[str, object]]:
         result = self._run(self._async_read_child_state(child))
+        if result is None:
+            _LOGGER.warning(
+                "HA adapter state snapshot for child=%s timed out", child.key
+            )
+            return {}
         _LOGGER.debug("HA adapter state snapshot child=%s state=%s", child.key, result)
         return result
 
@@ -102,7 +108,12 @@ class HAEntityBridge:
 
     def _run(self, coroutine):
         future = asyncio.run_coroutine_threadsafe(coroutine, self._hass.loop)
-        return future.result(timeout=15)
+        try:
+            return future.result(timeout=15)
+        except FuturesTimeoutError:
+            future.cancel()
+            _LOGGER.warning("HA adapter call did not finish within 15s; skipping result")
+            return None
 
     async def _async_read_child_state(
         self, child: ChildPlan

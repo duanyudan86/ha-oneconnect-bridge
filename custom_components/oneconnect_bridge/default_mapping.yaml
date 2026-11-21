@@ -80,6 +80,11 @@ children:
   #             medium: 2
   #             high: 3
   #           direction_enabled: false
+  #       # 电辅热：Profile 服务标识常见为 switchPTC，布尔 on（1 开 / 0 关）
+  #       - st: switch
+  #         sid: switchPTC
+  #         contract:
+  #           on_type: bool
   #   bindings:
   #     - sid: switch
   #       entities: [climate.REPLACE_WITH_AIR_CONDITIONER]
@@ -89,6 +94,8 @@ children:
   #       entities: [climate.REPLACE_WITH_AIR_CONDITIONER]
   #     - sid: fan
   #       entities: [climate.REPLACE_WITH_AIR_CONDITIONER]
+  #     - sid: switchPTC
+  #       entities: [switch.REPLACE_WITH_AUX_HEAT]
 
   # curtain_9my5:
   #   product:

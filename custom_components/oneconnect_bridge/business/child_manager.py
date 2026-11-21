@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import secrets
-from threading import RLock
+from threading import Lock, RLock
 
 from ..core.cloud_runtime import (
     CloudM2MClient,
@@ -41,6 +41,7 @@ class ChildManager:
         self._materials: dict[str, tuple[object, ChildIdentity, ChildMaterial]] = {}
         self._entity_bridge = None
         self._data_sequence = 0x2E
+        self._sequence_lock = Lock()
         self._lock = RLock()
         self._client: CloudM2MClient | None = None
         self._access_token: str | None = None
@@ -136,7 +137,11 @@ class ChildManager:
                     hardware_version=hardware_version,
                 )
                 return
-            self.store.remove_child(child.key)
+            raise ChildProtocolError(
+                f"stored identity for {child.key} has no material; restore "
+                f"children/{child.key}/material.json or delete "
+                f"children/{child.key}/identity.json to bind again"
+            )
 
         identity = self._new_identity(child)
         material: ChildMaterial | None = None
@@ -437,9 +442,10 @@ class ChildManager:
             self.enqueue_state_snapshot(child_key, state, client=client)
 
     def _next_data_sequence(self) -> bytes:
-        value = bytes((self._data_sequence,))
-        self._data_sequence = (self._data_sequence + 1) & 0xFF
-        return value
+        with self._sequence_lock:
+            value = bytes((self._data_sequence,))
+            self._data_sequence = (self._data_sequence + 1) & 0xFF
+            return value
 
     def _identity_from_storage(self, child_key: str, stored) -> ChildIdentity:
         try:

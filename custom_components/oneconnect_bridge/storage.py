@@ -2,11 +2,27 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import shutil
+import tempfile
+from pathlib import Path
 from typing import Any
 
 from .const import DOMAIN
+
+
+_PATH_SEPARATORS = ("/", "\\", "\x00")
+
+
+def is_safe_child_key(key: object) -> bool:
+    """Return whether a mapping key can be used as a single child directory name."""
+
+    return (
+        isinstance(key, str)
+        and bool(key)
+        and key not in {".", ".."}
+        and not any(char in key for char in _PATH_SEPARATORS)
+        and not any(ord(char) < 0x20 or ord(char) == 0x7F for char in key)
+    )
 
 
 class GatewayStore:
@@ -33,7 +49,10 @@ class GatewayStore:
         path = self.path(relative)
         if not path.is_file():
             return None
-        value = json.loads(path.read_text(encoding="utf-8"))
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            raise ValueError(f"stored JSON is invalid: {path}") from error
         if not isinstance(value, dict):
             raise ValueError(f"stored JSON object expected: {path}")
         return value
@@ -62,15 +81,34 @@ class GatewayStore:
 
     def write_json(self, relative: str, value: dict[str, Any]) -> Path:
         path = self.path(relative)
-        temporary = path.with_suffix(path.suffix + ".tmp")
-        temporary.write_text(
-            json.dumps(value, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
+        self._write_atomic(
+            path,
+            (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
         )
-        os.chmod(temporary, 0o600)
-        temporary.replace(path)
-        os.chmod(path, 0o600)
         return path
+
+    @staticmethod
+    def _write_atomic(path: Path, data: bytes) -> None:
+        """Replace one file atomically without sharing a temp name across writers."""
+
+        handle = tempfile.NamedTemporaryFile(
+            dir=path.parent,
+            prefix=f"{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        )
+        temporary = Path(handle.name)
+        try:
+            with handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.chmod(temporary, 0o600)
+            temporary.replace(path)
+        except BaseException:
+            temporary.unlink(missing_ok=True)
+            raise
+        os.chmod(path, 0o600)
 
     def ensure_mapping_file(self, source: Path) -> Path:
         """Copy the bundled sample mapping once into this gateway scope."""
@@ -80,11 +118,7 @@ class GatewayStore:
             return target
         if not source.is_file():
             raise FileNotFoundError(source)
-        temporary = target.with_suffix(target.suffix + ".tmp")
-        temporary.write_bytes(source.read_bytes())
-        os.chmod(temporary, 0o600)
-        temporary.replace(target)
-        os.chmod(target, 0o600)
+        self._write_atomic(target, source.read_bytes())
         return target
 
     def remove_gateway(self) -> None:
@@ -100,10 +134,7 @@ class GatewayStore:
     def remove_child(self, key: str) -> None:
         """Remove exactly one child storage scope."""
 
-        if not key or any(
-            char not in "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_-"
-            for char in key
-        ):
+        if not is_safe_child_key(key):
             raise ValueError("child key contains an unsafe path character")
         children_root = (self.root / "children").resolve()
         child_root = (children_root / key).resolve()

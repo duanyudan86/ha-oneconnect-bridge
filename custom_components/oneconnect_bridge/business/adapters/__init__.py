@@ -1,26 +1,9 @@
-"""Discover the Huawei service adapters shipped with this integration."""
+"""Register the Huawei service adapters shipped with this integration."""
 
 from __future__ import annotations
 
-import pkgutil
-from importlib import import_module
-
 from .api import ServiceAdapter
-
-
-def _discover_service_adapters() -> dict[str, ServiceAdapter]:
-    adapters: dict[str, ServiceAdapter] = {}
-    owners: dict[str, str] = {}
-    module_names = sorted(
-        module_info.name for module_info in pkgutil.iter_modules(__path__)
-    )
-    for module_name in module_names:
-        module = import_module(f"{__name__}.{module_name}")
-        adapter = getattr(module, "ADAPTER", _MISSING)
-        if adapter is _MISSING:
-            continue
-        _register_adapter(adapters, owners, module_name, adapter)
-    return adapters
+from .registry import ADAPTERS
 
 
 def _register_adapter(
@@ -58,8 +41,16 @@ def _register_adapter(
         owners[candidate] = module_name
 
 
-_MISSING = object()
-_ADAPTERS_BY_SERVICE_ID = _discover_service_adapters()
+def _build_adapters() -> dict[str, ServiceAdapter]:
+    adapters: dict[str, ServiceAdapter] = {}
+    owners: dict[str, str] = {}
+    for adapter in ADAPTERS:
+        module_name = type(adapter).__module__.rsplit(".", 1)[-1]
+        _register_adapter(adapters, owners, module_name, adapter)
+    return adapters
+
+
+_ADAPTERS_BY_SERVICE_ID = _build_adapters()
 
 
 def get_service_adapter(service_id: str) -> ServiceAdapter:
