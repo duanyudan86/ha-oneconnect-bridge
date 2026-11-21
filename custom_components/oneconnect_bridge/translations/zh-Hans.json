@@ -72,5 +72,16 @@
     "mapping_not_reloaded_message": "网关 `{serial}` 的子设备配置未重载：\n\n{error}\n\n旧配置仍保持运行，请修正 mapping.yaml 后再次重载。",
     "pairing_title": "OneConnect Bridge 配对",
     "pairing_message": "网关 `{serial}` 正在等待配对。\n\nPIN：`{pin}`\n\n请打开华为智慧生活，选择添加网关并手动输入 PIN。"
+  },
+  "options": {
+    "step": {
+      "init": {
+        "description": "修改网卡后该网关条目会自动重载。",
+        "title": "选择配对网卡",
+        "data": {
+          "interface_ip": "配对网络 IPv4 地址"
+        }
+      }
+    }
   }
 }

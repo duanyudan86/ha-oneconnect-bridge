@@ -72,5 +72,16 @@
     "mapping_not_reloaded_message": "Child-device configuration for gateway `{serial}` was not reloaded:\n\n{error}\n\nThe previous configuration remains active. Fix mapping.yaml and try again.",
     "pairing_title": "OneConnect Bridge pairing",
     "pairing_message": "Gateway `{serial}` is waiting for pairing.\n\nPIN: `{pin}`\n\nOpen Huawei Smart Life, select Add gateway, and enter the PIN manually."
+  },
+  "options": {
+    "step": {
+      "init": {
+        "description": "Changing the interface reloads this gateway entry.",
+        "title": "Select pairing network interface",
+        "data": {
+          "interface_ip": "Pairing network IPv4 address"
+        }
+      }
+    }
   }
 }
