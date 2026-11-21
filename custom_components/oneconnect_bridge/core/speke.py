@@ -275,9 +275,24 @@ class SpekeServer:
             return self._process_confirmation(session_id, inner)
         raise SpekeProtocolError(f"unsupported gateway SPEKE message: {message}")
 
+    def _restart(self) -> None:
+        """Discard an unconfirmed negotiation so the same peer can retry."""
+
+        self._context = _create_context(
+            self._pin,
+            _take_random(self._random_bytes, SALT_LENGTH),
+            self._random_bytes,
+        )
+        self._confirmed = False
+
     def _process_request(self, session_id: str, inner: Mapping[str, object]) -> bytes:
         if self._session_id is not None and session_id != self._session_id:
-            raise SpekeProtocolError("SPEKE sessionId changed during negotiation")
+            if self._confirmed:
+                raise SpekeProtocolError(
+                    "SPEKE sessionId changed after negotiation completed"
+                )
+            # A phone retry starts a new sessionId; keep the PIN window usable.
+            self._restart()
         if inner.get("operationCode") != SPEKE_OPERATION_CODE:
             raise SpekeProtocolError("unsupported SPEKE operationCode")
         _require_version(inner)
