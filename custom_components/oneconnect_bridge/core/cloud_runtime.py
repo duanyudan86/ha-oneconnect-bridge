@@ -17,6 +17,7 @@ import time
 from typing import Callable
 from urllib.parse import urlsplit
 
+from .atomic_file import write_atomic
 from .m2m import (
     ACCESS_TOKEN_ID,
     BRIDGE_COAP_CONTENT,
@@ -940,12 +941,10 @@ class CloudM2MClient:
         for key in remove_keys:
             material.pop(key, None)
 
-        temporary = path.with_suffix(path.suffix + ".tmp")
-        temporary.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        temporary.write_text(json.dumps(material, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        temporary.chmod(0o600)
-        temporary.replace(path)
-        path.chmod(0o600)
+        write_atomic(
+            path,
+            (json.dumps(material, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+        )
         return path
 
     def _tls_context(self) -> ssl.SSLContext:

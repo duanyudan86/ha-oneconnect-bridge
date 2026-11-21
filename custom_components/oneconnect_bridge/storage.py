@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 import shutil
 from typing import Any
 
 from .const import DOMAIN
+from .core.atomic_file import write_atomic
 
 
 class GatewayStore:
@@ -62,14 +62,10 @@ class GatewayStore:
 
     def write_json(self, relative: str, value: dict[str, Any]) -> Path:
         path = self.path(relative)
-        temporary = path.with_suffix(path.suffix + ".tmp")
-        temporary.write_text(
-            json.dumps(value, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
+        write_atomic(
+            path,
+            (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
         )
-        os.chmod(temporary, 0o600)
-        temporary.replace(path)
-        os.chmod(path, 0o600)
         return path
 
     def ensure_mapping_file(self, source: Path) -> Path:
@@ -80,11 +76,7 @@ class GatewayStore:
             return target
         if not source.is_file():
             raise FileNotFoundError(source)
-        temporary = target.with_suffix(target.suffix + ".tmp")
-        temporary.write_bytes(source.read_bytes())
-        os.chmod(temporary, 0o600)
-        temporary.replace(target)
-        os.chmod(target, 0o600)
+        write_atomic(target, source.read_bytes())
         return target
 
     def remove_gateway(self) -> None:
