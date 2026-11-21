@@ -106,6 +106,13 @@ class JsonTrace:
         self.path.chmod(0o600)
 
 
+def _preview(value: bytes, limit: int = 240) -> str:
+    """Return a bounded, printable view of a cloud payload for diagnostics."""
+
+    text = value[:limit].decode("utf-8", errors="replace")
+    return text + "..." if len(value) > limit else text
+
+
 def _b64(value: bytes) -> str:
     return base64.b64encode(value).decode("ascii")
 
@@ -842,11 +849,14 @@ class CloudM2MClient:
             )
             _LOGGER.warning(
                 "Ignoring unsupported cloud message during online session: "
-                "code=%s path=%s token_length=%s frame_length=%s",
+                "code=%s path=%s token_length=%s frame_length=%s "
+                "options=%s payload=%s",
                 message.code,
                 path,
                 len(message.token),
                 len(response_wire),
+                [option.number for option in message.options],
+                _preview(message.payload),
             )
             continue
         return CloudRunResult(registered=True, stage="heartbeat", errcode=0)
