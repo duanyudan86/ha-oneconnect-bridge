@@ -9,6 +9,21 @@ from typing import Any
 from .const import DOMAIN
 
 
+_PATH_SEPARATORS = ("/", "\\", "\x00")
+
+
+def is_safe_child_key(key: object) -> bool:
+    """Return whether a mapping key can be used as a single child directory name."""
+
+    return (
+        isinstance(key, str)
+        and bool(key)
+        and key not in {".", ".."}
+        and not any(char in key for char in _PATH_SEPARATORS)
+        and not any(ord(char) < 0x20 or ord(char) == 0x7F for char in key)
+    )
+
+
 class GatewayStore:
     """Store runtime material below HA's .storage directory."""
 
@@ -100,10 +115,7 @@ class GatewayStore:
     def remove_child(self, key: str) -> None:
         """Remove exactly one child storage scope."""
 
-        if not key or any(
-            char not in "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_-"
-            for char in key
-        ):
+        if not is_safe_child_key(key):
             raise ValueError("child key contains an unsafe path character")
         children_root = (self.root / "children").resolve()
         child_root = (children_root / key).resolve()
