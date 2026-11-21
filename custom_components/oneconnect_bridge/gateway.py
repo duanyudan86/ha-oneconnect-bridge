@@ -153,7 +153,6 @@ class PairingBroker:
                 except TimeoutError:
                     if runtime.pairing_expired:
                         runtime.on_pairing_expired()
-                        break
                     continue
                 except OSError:
                     break
@@ -442,8 +441,12 @@ class GatewayRuntime:
         self._set_status("error", f"pairing listener: {error}")
 
     def on_pairing_expired(self) -> None:
-        self._clear_pairing_ticket()
-        self._set_status("offline", "pairing PIN expired")
+        if self._stopped:
+            self._clear_pairing_ticket()
+            return
+        self._create_pairing_ticket()
+        self._set_status("pairing", "pairing PIN expired; a new pairing PIN was issued")
+        _LOGGER.info("Gateway %s issued a new pairing PIN after expiry", self.serial)
 
     def consume_pairing_complete(self) -> bool:
         with self._lock:
