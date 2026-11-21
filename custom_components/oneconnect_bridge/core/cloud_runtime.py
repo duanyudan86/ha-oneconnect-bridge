@@ -1347,7 +1347,12 @@ class CloudM2MClient:
             raise CloudRuntimeError("cloud socket is not connected")
         result = bytearray()
         while len(result) < length:
-            chunk = self._socket.recv(length - len(result))
+            try:
+                chunk = self._socket.recv(length - len(result))
+            except TimeoutError as error:
+                raise CloudRuntimeError(
+                    "cloud socket timed out before frame completion"
+                ) from error
             if not chunk:
                 raise CloudRuntimeError("cloud socket closed before frame completion")
             result.extend(chunk)
