@@ -211,6 +211,7 @@ class GatewayRuntime:
         self._active_client: CloudM2MClient | None = None
         self._integration_version = ""
         self._reload_queue: Queue[dict[str, object]] = Queue()
+        self._discovery_message_id = secrets.randbelow(0x10000)
 
     def set_gateway_plan(self, plan: GatewayPlan | None) -> None:
         """Attach the compiled child plan for this gateway instance."""
@@ -633,6 +634,11 @@ class GatewayRuntime:
             hardware_version=self._integration_version,
         )
 
+    def _next_discovery_message_id(self) -> int:
+        with self._lock:
+            self._discovery_message_id = (self._discovery_message_id + 1) & 0xFFFF
+            return self._discovery_message_id
+
     def _create_pairing_ticket(self) -> None:
         pin = f"{secrets.randbelow(100_000_000):08d}"
         expires = time.monotonic() + PIN_TTL_SECONDS
@@ -643,7 +649,7 @@ class GatewayRuntime:
             self._pairing_responder = LocalPairingResponder(
                 self.descriptor,
                 pin,
-                discovery_response_message_id=lambda: 0x2774,
+                discovery_response_message_id=self._next_discovery_message_id,
                 on_cloud_setup_record=self._on_cloud_setup_record,
             )
 
