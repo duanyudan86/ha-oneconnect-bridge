@@ -1212,7 +1212,10 @@ class CloudM2MClient:
             raise CloudRuntimeError("cannot acknowledge cloud control without online auth")
 
         if is_discovery:
-            if _json_object(message.payload) != {"enable": 1}:
+            payload = _json_object(message.payload)
+            # The cloud sends ``enable: 1`` when discovery starts and ``enable: 0``
+            # once it stops; both are control requests that expect an ACK.
+            if payload is None or payload.get("enable") not in (0, 1):
                 return False
             try:
                 target_dev_id = option_values[DEVICE_ID].decode("utf-8")
