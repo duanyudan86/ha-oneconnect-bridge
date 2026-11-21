@@ -153,8 +153,11 @@ def build_child_command_response(
         CoapTcpOption(SEQUENCE_NUMBER - 1, command.context),
         CoapTcpOption(SEQUENCE_NUMBER, bytes((sequence,))),
     )
-    output = bytearray((0x58, BRIDGE_COAP_CONTENT))
-    output.extend(command.message.token)
+    token = command.message.token
+    if len(token) > 8:
+        raise ChildProtocolError("child command token exceeds eight bytes")
+    output = bytearray((0x50 | len(token), BRIDGE_COAP_CONTENT))
+    output.extend(token)
     previous = 0
     for option in sorted(options, key=lambda item: item.number):
         delta_nibble, delta_extension = _encode_extended(option.number - previous)
