@@ -158,7 +158,15 @@ class PairingBroker:
                 except OSError:
                     break
 
-                response, _ = runtime.handle_pairing_datagram(packet, remote[0])
+                try:
+                    response, _ = runtime.handle_pairing_datagram(packet, remote[0])
+                except Exception as error:  # noqa: BLE001 - keep the listener alive
+                    _LOGGER.warning(
+                        "Ignoring malformed pairing datagram from %s: %s",
+                        remote[0],
+                        error,
+                    )
+                    continue
                 if response is not None:
                     try:
                         sock.sendto(response, remote)
