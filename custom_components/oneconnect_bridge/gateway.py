@@ -541,42 +541,67 @@ class GatewayRuntime:
 
             reconnect_delay = RECONNECT_INITIAL_DELAY_SECONDS
             while not self._cloud_stop.is_set():
-                ca_path = _ensure_huawei_trust_store(self.store)
-                session_state = active_bound_state
-                if active_bound_state is not None:
-                    session_state = (
-                        self.store.read_json("cloud/material.json")
-                        or active_bound_state
+                try:
+                    ca_path = _ensure_huawei_trust_store(self.store)
+                    session_state = active_bound_state
+                    if active_bound_state is not None:
+                        session_state = (
+                            self.store.read_json("cloud/material.json")
+                            or active_bound_state
+                        )
+                    client = CloudM2MClient(
+                        binding=active_binding,
+                        serial_number=self.serial,
+                        mac=self.config.mac,
+                        interface_ip=self.config.interface_ip,
+                        material_path=self.store.path("cloud/material.json"),
+                        on_online=lambda: self._set_status("online"),
+                        on_cloud_ready=handle_cloud_ready,
+                        on_worker_tick=self._process_reload_requests,
+                        device_model=self.config.model,
+                        device_type=self.config.device_type,
+                        manufacturer=self.config.manufacturer,
+                        product_id=self.config.product_id,
+                        protocol_type=self.config.protocol_type,
+                        firmware_version=integration_version,
+                        hardware_version=VIRTUAL_HARDWARE_VERSION,
+                        software_version=integration_version,
+                        cloud_primary_url=(
+                            session_state.get("cloudPrimaryUrl")
+                            if session_state
+                            else None
+                        ),
+                        cloud_standby_url=(
+                            session_state.get("cloudStandbyUrl")
+                            if session_state
+                            else None
+                        ),
+                        ca_json=ca_path,
                     )
-                client = CloudM2MClient(
-                    binding=active_binding,
-                    serial_number=self.serial,
-                    mac=self.config.mac,
-                    interface_ip=self.config.interface_ip,
-                    material_path=self.store.path("cloud/material.json"),
-                    on_online=lambda: self._set_status("online"),
-                    on_cloud_ready=handle_cloud_ready,
-                    on_worker_tick=self._process_reload_requests,
-                    device_model=self.config.model,
-                    device_type=self.config.device_type,
-                    manufacturer=self.config.manufacturer,
-                    product_id=self.config.product_id,
-                    protocol_type=self.config.protocol_type,
-                    firmware_version=integration_version,
-                    hardware_version=VIRTUAL_HARDWARE_VERSION,
-                    software_version=integration_version,
-                    cloud_primary_url=(
-                        session_state.get("cloudPrimaryUrl")
-                        if session_state
-                        else None
-                    ),
-                    cloud_standby_url=(
-                        session_state.get("cloudStandbyUrl")
-                        if session_state
-                        else None
-                    ),
-                    ca_json=ca_path,
-                )
+                except ValueError as error:
+                    _LOGGER.error(
+                        "Gateway %s cloud setup is invalid; stopping: %s",
+                        self.serial,
+                        error,
+                    )
+                    self._set_status("error", f"invalid cloud setup: {error}")
+                    return
+                except Exception as error:  # noqa: BLE001 - transient setup failure
+                    _LOGGER.warning(
+                        "Gateway %s cloud client setup failed; retrying in %.1fs: %s",
+                        self.serial,
+                        reconnect_delay,
+                        error,
+                    )
+                    self._set_status("offline")
+                    if self._cloud_stop.wait(reconnect_delay):
+                        self._set_status("offline")
+                        break
+                    reconnect_delay = min(
+                        reconnect_delay * 2,
+                        RECONNECT_MAX_DELAY_SECONDS,
+                    )
+                    continue
                 self._active_client = client
                 if session_state is None:
                     result = client.run(stop_event=self._cloud_stop)
