@@ -77,5 +77,6 @@
     "error": {
       "mac_not_found": "Unable to read the MAC address of the selected network interface."
     }
+    "pairing_message": "Gateway: **`{serial}`** is waiting for pairing.\n\n# PIN: {pin}\n\nOpen Huawei Smart Life, select Add gateway, and enter the PIN manually."
   }
 }

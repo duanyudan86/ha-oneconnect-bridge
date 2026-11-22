@@ -106,6 +106,13 @@ class JsonTrace:
         self.path.chmod(0o600)
 
 
+def _preview(value: bytes, limit: int = 240) -> str:
+    """Return a bounded, printable view of a cloud payload for diagnostics."""
+
+    text = value[:limit].decode("utf-8", errors="replace")
+    return text + "..." if len(value) > limit else text
+
+
 def _b64(value: bytes) -> str:
     return base64.b64encode(value).decode("ascii")
 
@@ -842,11 +849,14 @@ class CloudM2MClient:
             )
             _LOGGER.warning(
                 "Ignoring unsupported cloud message during online session: "
-                "code=%s path=%s token_length=%s frame_length=%s",
+                "code=%s path=%s token_length=%s frame_length=%s "
+                "options=%s payload=%s",
                 message.code,
                 path,
                 len(message.token),
                 len(response_wire),
+                [option.number for option in message.options],
+                _preview(message.payload),
             )
             continue
         return CloudRunResult(registered=True, stage="heartbeat", errcode=0)
@@ -1212,7 +1222,10 @@ class CloudM2MClient:
             raise CloudRuntimeError("cannot acknowledge cloud control without online auth")
 
         if is_discovery:
-            if _json_object(message.payload) != {"enable": 1}:
+            payload = _json_object(message.payload)
+            # The cloud sends ``enable: 1`` when discovery starts and ``enable: 0``
+            # once it stops; both are control requests that expect an ACK.
+            if payload is None or payload.get("enable") not in (0, 1):
                 return False
             try:
                 target_dev_id = option_values[DEVICE_ID].decode("utf-8")
@@ -1347,7 +1360,12 @@ class CloudM2MClient:
             raise CloudRuntimeError("cloud socket is not connected")
         result = bytearray()
         while len(result) < length:
-            chunk = self._socket.recv(length - len(result))
+            try:
+                chunk = self._socket.recv(length - len(result))
+            except TimeoutError as error:
+                raise CloudRuntimeError(
+                    "cloud socket timed out before frame completion"
+                ) from error
             if not chunk:
                 raise CloudRuntimeError("cloud socket closed before frame completion")
             result.extend(chunk)
