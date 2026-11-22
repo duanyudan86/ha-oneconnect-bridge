@@ -380,7 +380,14 @@ class GatewayRuntime:
         """Start bound cloud service or the temporary pairing service."""
 
         self._stopped = False
-        state = self.store.read_json("cloud/material.json")
+        try:
+            state = self.store.read_json("cloud/material.json")
+        except ValueError as error:
+            _LOGGER.error(
+                "Gateway %s cloud material is unreadable: %s", self.serial, error
+            )
+            self._set_status("error", f"invalid cloud material: {error}")
+            return
         if state and isinstance(state.get("devId"), str) and state.get("secret"):
             self.start_cloud_from_state(state)
             return
@@ -396,7 +403,13 @@ class GatewayRuntime:
     def has_bound_material(self) -> bool:
         """Return whether this gateway has enough material for bound login."""
 
-        state = self.store.read_json("cloud/material.json")
+        try:
+            state = self.store.read_json("cloud/material.json")
+        except ValueError as error:
+            _LOGGER.error(
+                "Gateway %s cloud material is unreadable: %s", self.serial, error
+            )
+            return False
         return bool(
             state
             and isinstance(state.get("devId"), str)
@@ -488,7 +501,15 @@ class GatewayRuntime:
                 nonlocal active_bound_state, active_binding
                 if active_bound_state is not None:
                     return True
-                material = self.store.read_json("cloud/material.json")
+                try:
+                    material = self.store.read_json("cloud/material.json")
+                except ValueError as error:
+                    _LOGGER.error(
+                        "Gateway %s cloud material is unreadable: %s",
+                        self.serial,
+                        error,
+                    )
+                    return False
                 if not material:
                     return False
                 dev_id = material.get("devId")
@@ -686,7 +707,13 @@ class GatewayRuntime:
             self._pairing_complete_pending = True
 
     def _load_binding(self) -> CloudSetupBindingInfo | None:
-        value = self.store.read_json("cloud/material.json")
+        try:
+            value = self.store.read_json("cloud/material.json")
+        except ValueError as error:
+            _LOGGER.error(
+                "Gateway %s cloud material is unreadable: %s", self.serial, error
+            )
+            return None
         if not value:
             return None
         try:
