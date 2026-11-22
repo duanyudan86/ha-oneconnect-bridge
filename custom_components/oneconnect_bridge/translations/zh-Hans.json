@@ -74,6 +74,15 @@
     "pairing_message": "网关 `{serial}` 正在等待配对。\n\nPIN：`{pin}`\n\n请打开华为智慧生活，选择添加网关并手动输入 PIN。"
   },
   "options": {
+    "step": {
+      "init": {
+        "description": "修改网卡后该网关条目会自动重载。",
+        "title": "选择配对网卡",
+        "data": {
+          "interface_ip": "配对网络 IPv4 地址"
+        }
+      }
+    }
     "error": {
       "mac_not_found": "无法读取所选网卡的 MAC 地址。"
     }
