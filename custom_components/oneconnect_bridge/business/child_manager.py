@@ -137,7 +137,11 @@ class ChildManager:
                     hardware_version=hardware_version,
                 )
                 return
-            self.store.remove_child(child.key)
+            raise ChildProtocolError(
+                f"stored identity for {child.key} has no material; restore "
+                f"children/{child.key}/material.json or delete "
+                f"children/{child.key}/identity.json to bind again"
+            )
 
         identity = self._new_identity(child)
         material: ChildMaterial | None = None
