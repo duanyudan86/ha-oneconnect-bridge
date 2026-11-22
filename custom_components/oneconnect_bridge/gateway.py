@@ -248,11 +248,16 @@ class GatewayRuntime:
         if client is None or thread is None or not thread.is_alive():
             self.set_gateway_plan(plan)
             return
-        request: dict[str, object] = {"event": threading.Event(), "plan": plan}
+        request: dict[str, object] = {
+            "event": threading.Event(),
+            "plan": plan,
+            "abandoned": False,
+        }
         self._reload_queue.put(request)
         event = request["event"]
         assert isinstance(event, threading.Event)
         if not event.wait(timeout):
+            request["abandoned"] = True
             raise TimeoutError(f"gateway {self.serial} child reload timed out")
         error = request.get("error")
         if isinstance(error, Exception):
@@ -267,6 +272,9 @@ class GatewayRuntime:
             event = request["event"]
             plan = request["plan"]
             assert isinstance(event, threading.Event)
+            if request.get("abandoned"):
+                event.set()
+                continue
             old_manager = self._child_manager
             old_callback = client.on_child_command
             try:
