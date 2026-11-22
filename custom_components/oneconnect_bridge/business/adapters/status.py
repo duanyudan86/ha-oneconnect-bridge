@@ -49,6 +49,15 @@ _LOGGER = logging.getLogger(__name__)
 
 # 同一个 (服务, 实体, 值) 只告警一次：配置漏项时能看到，但 app 重试不会刷屏
 _WARNED: set[tuple[str, str | None, object]] = set()
+_WARNED_LIMIT = 1024
+
+
+def _remember_warning(key: tuple[str, str | None, object]) -> None:
+    """记住已告警的 key；达到上限时丢掉一条，保证集合大小有上界。"""
+
+    if len(_WARNED) >= _WARNED_LIMIT:
+        _WARNED.pop()
+    _WARNED.add(key)
 
 
 class StatusServiceAdapter:
@@ -149,7 +158,7 @@ def _warn_unhandled(adapter: str, value: object, *, source: str | None = None) -
     key = (adapter, source, value)
     if key in _WARNED:
         return
-    _WARNED.add(key)
+    _remember_warning(key)
     label = adapter if source is None else f"{adapter} <- {source}"
     _LOGGER.warning(
         "%s: unhandled value %r has no Home Assistant mapping", label, value
