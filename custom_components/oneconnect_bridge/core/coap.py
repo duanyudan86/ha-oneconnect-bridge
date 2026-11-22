@@ -35,7 +35,12 @@ class CoapOption:
         return cls(number=number, value=value.encode("utf-8"))
 
     def as_text(self) -> str:
-        return self.value.decode("utf-8")
+        try:
+            return self.value.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise CoapProtocolError(
+                f"CoAP option {self.number} is not valid UTF-8"
+            ) from error
 
 
 @dataclass(frozen=True)
