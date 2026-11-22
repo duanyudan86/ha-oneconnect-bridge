@@ -90,13 +90,20 @@ class OptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         options = await self.hass.async_add_executor_job(_interface_options)
+        errors: dict[str, str] = {}
         if user_input is not None:
             interface_ip = user_input[CONF_INTERFACE_IP]
-            mac = await self.hass.async_add_executor_job(_interface_mac, interface_ip)
-            return self.async_create_entry(
-                title="",
-                data={CONF_INTERFACE_IP: interface_ip, CONF_MAC: mac},
-            )
+            try:
+                mac = await self.hass.async_add_executor_job(
+                    _interface_mac, interface_ip
+                )
+            except ValueError:
+                errors[CONF_INTERFACE_IP] = "mac_not_found"
+            else:
+                return self.async_create_entry(
+                    title="",
+                    data={CONF_INTERFACE_IP: interface_ip, CONF_MAC: mac},
+                )
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
@@ -107,4 +114,5 @@ class OptionsFlow(config_entries.OptionsFlow):
                     ): vol.In(options)
                 }
             ),
+            errors=errors,
         )

@@ -71,6 +71,12 @@
     "mapping_not_reloaded_title": "OneConnect Bridge 子设备配置",
     "mapping_not_reloaded_message": "网关 `{serial}` 的子设备配置未重载：\n\n{error}\n\n旧配置仍保持运行，请修正 mapping.yaml 后再次重载。",
     "pairing_title": "OneConnect Bridge 配对",
+    "pairing_message": "网关 `{serial}` 正在等待配对。\n\nPIN：`{pin}`\n\n请打开华为智慧生活，选择添加网关并手动输入 PIN。"
+  },
+  "options": {
+    "error": {
+      "mac_not_found": "无法读取所选网卡的 MAC 地址。"
+    }
     "pairing_message": "网关：**`{serial}`** 正在等待配对。\n\n# PIN：{pin}\n\n请打开华为智慧生活，选择添加网关并手动输入 PIN。"
   }
 }
