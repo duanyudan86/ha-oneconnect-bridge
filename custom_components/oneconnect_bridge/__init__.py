@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 
 from homeassistant.components import persistent_notification
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.translation import async_get_translations
@@ -225,6 +225,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             persistent_notification.async_dismiss(hass, notification_id)
 
     async def forward_platforms() -> None:
+        if entry.state not in (
+            ConfigEntryState.LOADED,
+            ConfigEntryState.SETUP_IN_PROGRESS,
+        ):
+            forwarded_entries.discard(entry.entry_id)
+            return
         try:
             await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
         except Exception:
@@ -235,10 +241,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
 
     def schedule_platforms_if_online() -> None:
-        if (
-            not has_bound_material
-            and runtime.status != "online"
-        ) or entry.entry_id in forwarded_entries:
+        if entry.entry_id in forwarded_entries:
+            return
+        if not has_bound_material and runtime.status not in {"online", "error"}:
             return
         forwarded_entries.add(entry.entry_id)
         hass.async_create_task(forward_platforms())
