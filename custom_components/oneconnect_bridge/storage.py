@@ -33,7 +33,10 @@ class GatewayStore:
         path = self.path(relative)
         if not path.is_file():
             return None
-        value = json.loads(path.read_text(encoding="utf-8"))
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            raise ValueError(f"stored JSON is invalid: {path}") from error
         if not isinstance(value, dict):
             raise ValueError(f"stored JSON object expected: {path}")
         return value

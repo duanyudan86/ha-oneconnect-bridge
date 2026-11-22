@@ -83,5 +83,9 @@
         }
       }
     }
+    "error": {
+      "mac_not_found": "无法读取所选网卡的 MAC 地址。"
+    }
+    "pairing_message": "网关：**`{serial}`** 正在等待配对。\n\n# PIN：{pin}\n\n请打开华为智慧生活，选择添加网关并手动输入 PIN。"
   }
 }
